@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  OVERDUE
+  CANCELLED
+}
+
+enum DrawStatus {
+  PENDING
+  PUBLISHED
+  CANCELLED
+}
+
+enum WinnerStatus {
+  PENDING
+  KYC_REQUIRED
+  KYC_VERIFIED
+  PAID
+  REJECTED
+}
+
+model User {
+  id                     String             @id @default(uuid())
+  email                  String             @unique
+  password               String
+  name                   String
+  phone                  String?
+  role                   Role               @default(USER)
+  subscriptionStatus     SubscriptionStatus @default(CANCELLED)
+  renewalDate            DateTime?
+  gracePeriodEnd         DateTime?
+  charityId              String?
+  charity                Charity?           @relation(fields: [charityId], references: [id])
+  contributionPercentage Int                @default(10)
+  totalContributed       Float              @default(0)
+  kycStatus              String             @default("NONE") // NONE, PENDING, VERIFIED
+  kycDocumentUrl         String?
+  scores                 Score[]
+  winners                Winner[]
+  subscriptions          Subscription[]
+  notifications          Notification[]
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+}
+
+model Score {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  value      Int      // Stableford points
+  grossScore Int?     // Raw stroke count
+  course     String?  // Course name
+  date       DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, date])
+}
+
+model Charity {
+  id                  String   @id @default(uuid())
+  name                String
+  description         String   @db.Text
+  image               String?
+  website             String?
+  category            String?  // e.g. Health, Children, Environment
+  totalReceived       Float    @default(0)
+  users               User[]
+  createdAt           DateTime @default(now())
+}
+
+model Draw {
+  id              String     @id @default(uuid())
+  type            String     // RANDOM or ALGORITHMIC
+  numbers         String     // Comma-separated e.g. "5,12,24,33,41"
+  status          DrawStatus @default(PENDING)
+  drawDate        DateTime   @default(now())
+  prizePool       Float      @default(0)   // Total prize pool (50% of monthly revenue)
+  firstPrize      Float      @default(0)   // 50% of prizePool
+  secondPrize     Float      @default(0)   // 30% of prizePool
+  thirdPrize      Float      @default(0)   // 20% of prizePool
+  totalRevenue    Float      @default(0)   // Revenue from subscriptions that month
+  winners         Winner[]
+  createdAt       DateTime   @default(now())
+}
+
+model Winner {
+  id          String       @id @default(uuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  drawId      String
+  draw        Draw         @relation(fields: [drawId], references: [id])
+  matchCount  Int          // 3, 4, or 5
+  tier        Int          // 1 = 5-match, 2 = 4-match, 3 = 3-match
+  prizeAmount Float
+  status      WinnerStatus @default(PENDING)
+  proofUrl    String?
+  kycRequired Boolean      @default(false)
+  paidAt      DateTime?
+  createdAt   DateTime     @default(now())
+}
+
+model Subscription {
+  id        String             @id @default(uuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id])
+  plan      String             @default("MONTHLY") // MONTHLY
+  amount    Float              @default(10.00)
+  currency  String             @default("GBP")
+  startDate DateTime           @default(now())
+  endDate   DateTime
+  status    SubscriptionStatus @default(ACTIVE)
+  createdAt DateTime           @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // EMAIL, IN_APP
+  subject   String
+  message   String   @db.Text
+  read      Boolean  @default(false)
+  sentAt    DateTime @default(now())
+}
+
+model SystemConfig {
+  id             String @id @default(cuid())
+  subscriptionFee Float  @default(10.00)
+  prizePoolPct    Float  @default(50.00) // 50% of revenue
+  charityPct      Float  @default(10.00) // 10% to charity
+  gracePeriodDays Int    @default(3)
+  kycThreshold    Float  @default(500.00) // KYC required above this prize
+}
