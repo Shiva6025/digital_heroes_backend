@@ -415,8 +415,25 @@ app.delete('/api/admin/charities/:id', auth, adminOnly, async (req: any, res) =>
 });
 
 // ─────────────────────────────────────────
-// HEALTH CHECK
+// ROOT & HEALTH CHECK
 // ─────────────────────────────────────────
+app.get('/', (_req, res) => {
+  res.json({
+    name: 'Digital Heroes API',
+    status: 'running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      auth: '/api/auth/signup | /api/auth/login | /api/auth/admin-login',
+      charities: '/api/charities',
+      scores: '/api/scores',
+      draw: '/api/draw',
+      admin: '/api/admin',
+      health: '/health',
+    },
+  });
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
